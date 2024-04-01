@@ -1,0 +1,599 @@
+---
+title: "Analysis the Effects of Beauty on Instructors' Satisfaction Score"
+author: "Cynthia"
+abstract: "The end-of-semester evaluation is critical for both instructors and institutions. A high satisfaction rating for a professor is a testament to the teacher's abilities. It appears that beautiful instructors are more likely to earn excellent ratings. The purpose of this study is to examine the aspects that contribute to a professor's assessment score. The University of Texas in Austin collects a large sample of student instructional ratings for a set of university professors and develop six independent measures of their beauty and a variety of additional descriptors for both them and their classes. The research examines the association between professor assessment score and attractiveness rating using a two-sample mean test and a multiple linear regression model. Additionally, it employs propensity score matching and a logistic regression model to account for confounding factors. The finding is statistically significant and indicates a causal relationship between academics' assessment scores and attractiveness ratings. A professor with a higher attractiveness rating is assumed to have a better assessment rating. Additionally, this study shows that students might be biased on instructors' appearance instead of evaluating them with quality of teaching. \\par \\textbf{Keywords:} two-sample hypothesis test, propensity score matching, logistic regression model, multiple linear regression model, observational study"
+output:   
+  bookdown::pdf_document2:
+    keep_tex: true
+    number_sections: yes
+    toc: false
+base_format: rticles::elsevier_article
+date: '`r format(Sys.time(), "%B %d, %Y")`'
+---
+
+```{r,include=FALSE, warning = FALSE}
+#install.packages("kableExtra")
+#install.packages("arm")
+knitr::opts_chunk$set(echo = TRUE)
+library("openintro")
+?evals
+library("tidyverse")
+library("broom")
+library("kableExtra")
+
+library("dplyr")
+#install.packages("AER")
+library("AER")
+```
+
+
+# Introduction
+"Typically, people who are attractive are judged to be more intelligent and more successful," said Logan Trujillo, a psychology professor at Texas State University who specializes in facial attractiveness (Westfall et al., 2016). Attractive people tend to benefit greater than others. It also applies to the salary of working. Daniel Hamermesh, professor of economics at the University of Texas at Austin, has examined that attractive people earn an average of 3 or 4 percent more than people with below-average looks (Hamermesh, 2013). Addictionally, students prefer to give a higher score to attractive professors in their courses. It is likely that the instructor's attractiveness results in a self-fulfilling prophecy effect, in which student expectations shape teacher conduct. Perhaps students' positive expectations of attractive instructors influence attractive instructors to engage in more effective teaching behaviours (e.g., devote more time to prepare). In contrast, negative expectations influence unattractive instructors to engage in less effective teaching behaviours (Stehle, Spinath, & Kadmon, 2012). In this study, my goal is to find **whether the attractiveness of professors influences their evaluation scores**. Also, the analysis can reflect discrimination of appearance. Students pay more attention to attractive instructors than considering how important the course is for them and the teacher's hard work.
+
+In this report, we use two-sample hypothesis tests to check the impact of instructors' looks on their instructional ratings in the courses they teach. Since confounding variables influence both variables we want to study, I need to use propensity score matching to eliminate the effects. And then build the model that considers beauty rating as a predictor and evaluation score as the response. The analysis is significant for finding productivity effects of beauty in the context of undergraduate education. Also, it is an exciting topic for many students and instructors. It is interesting to know if the attractiveness of the instructor can really help improve productivity. Based on experience, more students are willing to go to class with a good-looking instructor. Therefore, the result might show that **professors will have a higher assessment score if they are considered more attractive**. Lastly, it reminds us that we should be aware of prejudice in society. There are 4 major parts in the report. Section 2 describes the data collection procedure, and the data set used to examine the effect of beauty on this measure of instructor evaluation score. Section 3 introduces the study's methodology and models. Section 4 discusses and interprets the findings from our analysis of these issues. Section 4 discusses the analysis's implications for understanding the effect on achievements resulting from productivity effects or discrimination.
+
+# Data
+## Collection Process
+Daniel Hamermesh and Amy M. Parker did the research at the University of Texas at Austin (Hamermesh & Parker, 2005). School requires professors to be evaluated by their students each semester. The final three weeks of the 15-week semester are dedicated to evaluations. While the instructor is not present, a student administers the evaluation by selecting, "Overall, this teacher was extremely unsatisfactory (1); unsatisfactory (2); satisfactory (3); very good (4); excellent (5);" They chose professors of all levels from departments that have all faculty images available on their departmental websites. Photographs of ten additional faculty members were collected from various departments on campus. The average evaluation score for each undergraduate class taught by the faculty member during the academic years 2001-2002 is included. Finally, 463 lessons from sample members 1 to 13 with class sizes ranging from 8 to 581 are picked (registered as of the 12th day of the semester, after which dropping a class or even switching sections in a multi-section course becomes expensive). In addition, each course is graded by 5 to 380 students. Based on 16957 completed assessments from 25,547 students enrolled. Every level is covered. Each faculty member was questioned about their gender, tenure status, minority status, and whether or not they had studied abroad in an English-speaking country. Six undergraduate students rated the professors' photos: three females and three males from the lower and higher divisions, respectively (to accord with the distribution of classes across the two levels). The raters were told to use a 10 (highest) to 1 rating scale, pay attention to the instructor's physiognomy, rate regardless of age, and keep 5 in mind as an average. Each grade was normalised in terms of units. Each teacher's composite standardised beauty grade was calculated by adding the six normalised assessments (check the dataset (evals) in appendix).\
+
+```{r,echo=FALSE, message = FALSE, fig.width=6, fig.height=3, warning = FALSE, fig.cap = "Scatter plot for average professor evaluation score plotted against beauty rating"}
+plot(x= evals$bty_avg, y = evals$score, pch = 16, cex = 0.5, col = "darkolivegreen2", main = "Average professor evaluation score plotted against beauty rating", xlab = "Beauty rating", ylab = "Score", cex.lab=0.6, cex.axis=0.6, cex.main=0.6)
+abline(lm(evals$score~evals$bty_avg), col = "blue")
+```
+
+Scatter plot is helpful to understand the relationship between average professor evaluation score and average beauty rating of professor. As the points show a slight upward trend, beauty rating and score have a positive relationship (figure 1), but the association is not strong. 
+
+\newpage
+
+## Data cleaning & Important variables
+
+  Based on the data collection process, I find that ethnicity, number of professors teaching sections in course, gender of professor and class level might have a relationship with both professor's average satisfaction score and beauty rating. Therefore, I select them from the dataset as conditions, the professor's average satisfaction score as the response variable, and the professor's average beauty rating as the independent variable. 
+
+- *score*: Response variable; Average professor evaluation score: (1) very unsatisfactory - (5) excellent.\
+- *rank*: Rank of professor: teaching, tenure track, tenured.\
+- *minority*: Ethnicity of professor: not minority, minority.\
+- *gender*: Gender of professor: female, male.\
+- *cls_level*: Class level: lower, upper.\
+- *cls_profs*: Number of professors teaching sections in course in sample: single, multiple.\
+- *bty_avg*: Independent varialbe; Average beauty rating of professor.\
+
+For doing propensity score matching later, I divide professors who receive beauty ratings into two groups: high beauty rating and low beauty rating with the mean of overall beauty rating 4.42 (round to 2 decimals) as a cut.
+
+- High beauty rating: \boldmath$bty_{avg} \geq 4.42$; Low beauty rating: \boldmath$bty_{avg} < 4.42$
+
+In this case, high beauty rating is treatment group, and low beauty rating is control group. Thus, I mutate a new column named "bty_high" to store high beauty rating professor as 1 while low beauty rating professor as 0 and save it for doing logistic regression model. \
+
+```{r, echo=FALSE}
+#head(evals) #appendix
+df <- evals %>% filter(!is.na(score)) %>% 
+  filter(!is.na(ethnicity)) %>% 
+  filter(!is.na(cls_profs)) %>% 
+  filter(!is.na(cls_students)) %>%
+  filter(!is.na(rank)) %>%
+  filter(!is.na(cls_level)) %>%
+  filter(!is.na(bty_avg)) %>%
+  mutate(bty_rate = ifelse(bty_avg >= mean(bty_avg), "High beauty rating", "Low beauty rating")) %>%
+  select(score,ethnicity,cls_profs, gender, cls_level, bty_avg, bty_rate)
+
+df <- df %>% mutate(bty_high = ifelse(bty_rate == "High beauty rating", 1, 0))
+```
+
+```{r,echo=FALSE, message = FALSE, fig.width=6, fig.height=3, warning = FALSE, fig.cap = "Barplot of Average Professor Beauty Rating"}
+
+ggplot(df, aes(x=bty_rate, fill=bty_rate )) +  
+  geom_bar( ) +
+  scale_fill_manual(values = c("lightgoldenrod1", "khaki1") ) + theme(
+        axis.title.x = element_text(size = 9),
+  axis.title.y = element_text(size = 9),plot.title = element_text(size = 10)
+    )+
+  theme(legend.position="none") +labs(x= "Frequency", y = "Level of Average Professor Beauty Rating", title = "Barplot of Average Professor Beauty Rating") + geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "black")
+
+```
+
+180 courses are taught high beauty rating professor; 283 courses are taught by low beauty rating professor. 
+
+
+\newpage
+
+```{r, fig.width=6, fig.height=3, echo = FALSE, message = FALSE, warning = FALSE, fig.cap = "Histogram of Average Professor Evaluation Score (high & low beauty rating groups)"}
+df %>%
+  mutate(text = fct_reorder(bty_rate, score)) %>%
+  ggplot(aes(x=score, fill=bty_rate)) +
+    geom_histogram(alpha=0.6, binwidth = 0.2) +
+  scale_fill_manual(values = c("orange", "olivedrab2") )+
+    theme(
+      legend.position="none",
+      panel.spacing = unit(0.1, "lines"),
+      strip.text.x = element_text(size = 8),
+        axis.title.x = element_text(size = 10),
+  axis.text.x = element_text(size = 10),
+  axis.title.y = element_text(size = 8)
+    ) + 
+    xlab("Average Professor Evaluation Score: (1) very unsatisfactory - (5) excellent.") +
+    ylab("Frequency") + ggtitle("Distribution of Average Professor Evaluation Score") +
+    facet_wrap(~text)
+```
+
+
+```{r, echo= FALSE, message = FALSE}
+#High
+summary_1 <- df %>%  filter(bty_rate == "Low beauty rating") %>%summarise(
+                                  min = min(score),
+                                  max = max(score),
+                                  median = median(score),
+                                  IQR = quantile(score,0.75) - quantile(score,0.25),
+                                  mean = mean(score),
+                                  sd = sd(score))
+```
+
+
+```{r, echo= FALSE, message = FALSE}
+#Low
+summary_2 <- df %>% filter(bty_rate == "High beauty rating") %>% summarise(
+                                  min = min(score),
+                                  max = max(score),
+                                  median = median(score),
+                                  IQR = quantile(score,0.75) - quantile(score,0.25),
+                                  mean = mean(score),
+                                  sd = sd(score))
+```
+
+```{r,echo=FALSE, warning= FALSE}
+T0 <- full_join(x=summary_1, y=summary_2, 
+                by = c("min","max", "median","IQR","mean","sd"))
+
+rownames(T0) <- c("Low", "High")
+kable(T0, caption="Summary table of Average Professor Evaluation Score")
+```
+
+  The average professor evaluation score is our response variable in the study. It is a numerical variable. Students rate their professors when they are absent with extremely unsatisfactory (1); unsatisfactory (2); satisfactory (3); very good (4); excellent (5). Looking at the score distribution (Figure 3), the distribution of the low beauty rating group is left-skewed, which means fewer students feel unsatisfied. Also, the histogram for the low beauty rating group is bimodal. One peak is at around 3.8, and another is at about 4.4.
+Meanwhile, the distribution of the high beauty rating group is left-skewed, which means fewer students feel unsatisfied too, but it is multimodal with 4 peaks. They are at around 3.4, 4, 4.4 and 4.8 respectively. The summary table (table 1) shows that the mean professor evaluation score is 4.11 for courses with average low beauty rating professors. The median is slightly larger than the mean, which is 4.2. While, the mean professor evaluation score is 4.27 for courses with average high beauty rating professor, and the median is a little bit larger than the mean, which is 4.4.  It refers to the distribution for both groups as what is mentioned above. The minimum average evaluation score is 2.4 for the low beauty rating group, while 2.3 for the high beauty rating group. The maximum score is 5 for both low high beauty rating groups. Also, standard deviations for the low beauty rating group is 0.545 and 0.53 for the high beauty rating group. It indicates that the spreads of both datasets are small. 
+
+All analysis for this report was programmed using R version 4.1.2. The barplot and histogram in this section were created using the ggplot2 package (Pedersen, 2021).
+
+
+# Method
+
+
+  The study aims to find the relationship between the average professor evaluation score and the average beauty rating of the professor. Firstly, I conduct a **two sample mean test** of average professor evaluation score between high average beauty rating (who has rating being higher than the average rating of professors from 463 courses) and low average beauty rating professor (who has rating being more deficient than the average rating of professors from 463 courses). In this case, I assume the variance of average professor evaluation score in the population are a difference 
+
+- The **Null Hypothesis** is $\mu_{bty_{high}}= \mu_{bty_{low}}$; it means the population average professor evaluation score for high average beauty rating professor is the same as low average beauty rating professor.\
+- The **Alternative Hypothesis** is $\mu_{bty_{high}} \neq \mu_{bty_{low}}$; it means the population average professor evaluation score for high average beauty rating professor is not the same as low average beauty rating professor.
+
+Note:\ 
+\boldmath$\mu_{bty_{high}}$ representing the population mean of professor evaluation score for high average beauty rating professor.\
+\boldmath$\mu_{bty_{low}}$ representing the population mean of professor evaluation score for low average beauty rating professor.\
+
+  I use R code to find test statistics. So, I set values for simulation, including the number of repetitions and seed. Then, I use a for loop to simulate the difference in the sample mean of professor evaluation score between high average beauty rating professor group low average beauty rating professor group. 
+
+  Secondly, I want to find if there is causal inference between average professor evaluation score and average beauty rating of professor. Some confounding variables are factors other than one being studied associated with the average professor evaluation score and professor average beauty rating. The way we obtained the professor beauty rating is: each instructor's photograph was assessed by six undergraduate students (three women and three men, with one of each gender representing the lower division and two representing the higher level). However, the average professor evaluation score is rated by students who take the courses and participate in the evaluation. Since minorities might have different features like speaking preference and accent, and some might have different aesthetics on appearance, ethnicity can affect the professor evaluation score and beauty rating. Also, people can have a bias on male or female professors so that gender can affect both ratings too. The class level should be considered to play a role as well because we could be tempted to assume that more mature pupils and students studying beyond the primary level in a topic are less influenced by qualities such as beauty, which are almost certainly unrelated to the instructor's subject competence. Also, upper-level students might have known the professors from both upper and lower levels and rated them based on previous experience. Finally, if a professor teaches more than one section, it can affect the number of students who participate in the evaluation and teaching quality. There could be more chances for students to meet them in school or take their courses, so the students who rate beauty might have met them. Since the rating of beauty is independent of age, I do not consider it one of the variables. Therefore, the **confounding variables** are ethnicity, gender, class level, and the number of professors teaching sections in the course in the sample. It appears that **propensity score matching** is an excellent way to eliminate the influence of those confounding variables. To begin propensity score matching, I first need to set up **logsitic regression model** with professor beauty rating as the response. The predictor variables are confounding variables mentioned above. 
+
+\begin{table}[h]
+\begin{center}
+\caption{Predictor variables for logistic regression model}
+\begin{tabular}{|c|c|}
+\hline
+Variables&Description\\
+\hline
+ $x_1$ & Binary variable for professor's ethinicity (1 = not minority, 0 = minority)\\
+ $x_2$ & Binary variable for professor's gender (1 = male, 0 = female)\\
+ $x_3$ & Binary variable for class level (1 = upper level, 0 = lower level)\\
+ $x_4$ & Binary variable for number of sections (1 = single, 0 = multiple)\\
+\hline
+\end{tabular}
+\end{center}
+
+\end{table}
+
+## Logsitic regression model
+
+\boldmath$$log(\frac{p}{1-p}) = \beta_0 +\beta_1 x_1 + \beta_2 x_2 + \beta_3 x_3 + \beta_4 x_4 $$
+                        
+- $p$ represents is the probability of the event of interest occurring (professor with higher or equal average beauty rating than 4.42). $\hat{p} = logit^{-1}(a) = \frac{e^a}{(e^a+1)}$\
+- $\beta_0$ represents the intercept of the model. It is the log of odds of professors with a higher average beauty rating than 4.42 when a female professor who is minority teaching lower-level course, and there are more than one professor teaching sections in course. \
+- $\beta_1$: Dummy variables of ethnicity. When ethnicity changes from minority to not minority, holding other variables constant, log odds of professors with higher average beauty rating than 4.42 is expected to alter $\beta_1$.\
+- $\beta_2$: Dummy variables of the number of professors teaching sections in course. When number changes from multiple to single, holding other variables constant, log odds of professor with higher average beauty rating than 4.42 is expected to change $\beta_2$.\
+- $\beta_3$: Dummy variables of number of professor's gender in a course. When professor's gender changes from female to male, holding other variables constant, log odds of professor with higher average beauty rating than 4.42 is expected to change $\beta_3$.\
+- $\beta_4$: Dummy variables of class level. When class level changes from lower to upper levels, holding other variables constant, log odds of professor with higher average beauty rating than 4.42 is expected to change $\beta_4$.\
+
+
+Next, to balance treatment and control groups on observable traits, I use r code to match two people based on assigned probability and eliminate the unmatched observations. It can make sure two matching observations have similar features. 
+
+
+
+## Linear regression model
+
+  Lastly, a **linear regression model** can be obtained after propensity score matching by reducing the effect of confounding variables. The variables are as following
+
+
+\begin{table}[h]
+\begin{center}
+\caption{Response and predictor variables for logistic regression model}
+\begin{tabular}{|c|c|}
+\hline
+Variables&Description\\
+\hline
+ $y$ & Numerical variable for professor evaluation score\\
+ $x_1$ & Binary variable for professor's ethinicity (1 = not minority, 0 = minority)\\
+ $x_2$ & Binary variable for professor's gender (1 = male, 0 = female)\\
+ $x_3$ & Binary variable for class level (1 = upper level, 0 = lower level)\\
+ $x_4$ & Binary variable for number of sections (1 = single, 0 = multiple)\\
+ $x_5$ & Binary variable for professor level of beauty rating (1 = high beauty rating, 0 = low beauty rating)\\
+\hline
+\end{tabular}
+\end{center}
+
+\end{table}
+
+
+$$Y=\beta_0 +\beta_1 X_1+\beta_2 X2 + \beta_3 X3 +\beta_4  X_4 + \beta_5 X_5 +\epsilon_i$$
+
+- $\beta_0$ : Interception of linear regression line. The expected value of average professor evaluation score for the professor is a minority and female who teaches lower level course and has average beauty rating being lower than the mean of all professors' from all courses, which means when $X_i = 0$, $j= 1, 2, 3, 4, 5$\
+- $\beta_1$ : Dummy variables of ethnicity of professor. When ethnicity of professor changes from minority to not minority, expected average professor evaluation score is expected to change $\beta_1$ holding all other predictor variables constant\
+- $\beta_2$ : Dummy variables of number of professors teaching sections in course in sample. When number of professors teaching sections in course changes from multiple to single, expected average professor evaluation score is expected to change $\beta_2$ holding all other predictor variables constant\
+- $\beta_3$ : Dummy variables of gender of professor. When gender of professor changes from female to male, the expected average professor evaluation score is expected to change $\beta_3$ holding all other predictor variables constant\
+- $\beta_4$ : Dummy variables of class level. When class level changes from lower to upper, the expected average professor evaluation score is expected to change $\beta_4$ holding all other predictor variables constant\
+- $\beta_5$ : Dummy variables of average beauty rating of professor. When average beauty rating of professor changes from lower than the average score of professors from all courses to being higher, expected average professor evaluation score is expected to change $\beta_5$ holding all other predictor variables constant.\
+- $\epsilon_i$ is the $i^{th}$ error term for this regression model.\
+
+
+# Result
+
+## \textcolor{blue}{Two Sample Hypothesis Test}
+
+```{r, include=FALSE}
+set.seed(202)
+repetitions <- 1000;
+simulated_values <- rep(NA, repetitions)
+
+test_stat <- df %>% group_by(as.factor(bty_high)) %>%
+  summarise(average = mean(score)) %>%
+  summarise(value = diff(average))
+test_stat <- as.numeric(test_stat)
+test_stat
+
+for(i in 1:repetitions){
+  simdata <- df  %>% mutate(habit = sample(bty_high))
+  sim_value <- simdata %>% group_by(bty_high) %>%
+  summarise(average = mean(score)) %>%
+  summarise(value = diff(average))
+  simulated_values[i] <- as.numeric(sim_value)
+}
+
+sim <- tibble(average_diff = simulated_values)
+
+# Calculate p-value
+num_more_extreme <- sim %>% filter(abs(average_diff) >= abs(test_stat)) %>% summarise(n())
+
+p_value <- as.numeric(num_more_extreme / repetitions)
+p_value
+
+```
+    
+\begin{table}[h]
+\begin{center}
+\caption{Result of two sample mean test}
+
+\begin{tabular}{|c|c|}
+\hline
+  test stat  & p-value\\
+  \hline
+  `r test_stat` & `r p_value`\\
+  \hline
+\end{tabular}
+\end{center}
+
+\end{table}
+ 
+  We found the difference between the average professor evaluation scores from the professor who has average beauty rating higher or equal to `r round(mean(df$bty_avg), 2)` and the professor who has lower average beauty rating than `r round(mean(df$bty_avg), 2)` is `r test_stat`, the corresponding p-value of `r p_value` means we have evidence to show that $\mu_{bty_{high}} = \mu_{bty_{low}}$. We fail to reject the hypothesis. It means the population average professor evaluation scores are the same for the professor who has average beauty rating higher or equal to `r round(mean(df$bty_avg), 2)` and the professor who has a lower average beauty rating than `r round(mean(df$bty_avg), 2)`. However, it is an observational dataset. Some confounding variables other than one being studied are associated with the average professor evaluation score and professor average beauty rating. We cannot conclude that they do not have a relationship. Therefore, it is necessary to introduce **propensity score matching**. 
+
+
+
+## \textcolor{blue}{Propensity Score Matching}
+
+
+A high average beauty rating is our treatment. Low average beauty rating is the control group.\
+Score (average professor evaluation score) is our outcome of interest.\
+Propensity score matching will be for the high average beauty rating propensity.\
+
+  Therefore, I construct a logistic regression model that explains **whether a person was treated (high beauty rating/low beauty rating)** as a function of the variables, including ethnicity, number of teaching sections in course, gender and class level, that we think might explain it. Table 5 is the result of logistic regression model. 
+
+```{r, echo=FALSE}
+propensity_score <- glm(bty_high ~ ethnicity + cls_profs + gender + cls_level,
+                        family = binomial,
+                        data = df)
+
+knitr::kable(broom::tidy(propensity_score), caption = "Result of Logistic Regression Model")
+
+df <- augment(propensity_score,
+              data = df,
+              type.predict = "response") %>%
+  dplyr::select(-.resid, -.std.resid, -.hat, -.sigma, -.cooksd) %>%
+  arrange(.fitted, bty_high)
+#head(df, n= 10) appendix
+```
+
+$$log(\frac{p}{1-p}) = -0.207 -0.308 x_1 + 0.241 x_2 -0.353x_3 + 	0.205x_4 $$
+                        
+- $P$ represents is the probability of the event of interest occurring (professor with higher or equal average beauty rating than 4.42). \
+- $\beta_0 = -0.207$ represents the intercept of the model, and is the log of odds of professor with higher average beauty rating than 4.42 when a female professor who is minority teaching lower level course, and there are more than one professor teaching sections in course. \
+- $\beta_1= -0.308$: Dummy variables of ethnicity. When ethnicity changes from minority to not minority, holding other variables constant, log odds of professors with higher average beauty rating than 4.42 is expected to decrease 0.308.\
+- $\beta_2 = 0.241$: Dummy variables of number of professors teaching sections in course. When number changes from multiple to single, holding other variables constant, the log odds of professor with higher average beauty rating than 4.42 are expected to increase 0.241.\
+- $\beta_3 = -0.353$: Dummy variables of the number of professor's gender in a course. When professor's gender changes from female to male, holding other variables constant, log odds of professor with a higher average beauty rating than 4.42 is expected to decrease by 0.353.\
+- $\beta_4 = 0.205$: Dummy variables of class level. When class level changes from lower to upper levels, holding other variables constant, the log odds of professor with a higher average beauty rating than 4.42 are expected to increase 0.205.\
+
+All analysis for this section was programmed using R version 4.1.2. I used the glm() function in base R to derive the estimates of logistic regression in this section (glm: Fitting Logistic Model, n.d.). \
+I use kable (Hao Zhu, 2021) and broom (David et al., 2021) to create table
+
+--------------------------------
+
+Then, I utilise augment's function to forecast the likelihood of a professor receiving a high attractiveness rating. Then, I build matches based on the forecast.\ 
+For each individual that was treated (average beauty rating greater than `r round(mean(df$bty_avg),2)`), we want the untreated person who was regarded to be as similar to them as feasible (based on propensity score).\ 
+Following that, I utilise the matching function provided by the arm package. This identifies which of the individuals who were not treated is the most similar to each treated individual.
+
+In this scenario, I limit the dataset to those that are matched (identical predicted probability). In the end, we treated `r sum(df$bty_high)` (high average beauty rating), and so anticipate a dataset containing **`r 2*sum(df$bty_high)` observations**.
+
+```{r, include=FALSE}
+df <- df %>% mutate(treated = ifelse(bty_high == 0, 0, 1))
+
+matches <- arm::matching(z = df$treated,
+                         score = df$.fitted)
+
+df <- cbind(df, matches)
+```
+
+```{r, include= FALSE}
+df_matched <- df %>%
+  filter(match.ind != 0) %>%
+  dplyr::select(-match.ind, -pairs, -treated)
+```
+
+
+## Evaluate Quality of Matching 
+
+The goal of evaluating matching quality is to balance treatment and control groups on observable traits.\
+I use z.test to do a hypothesis test. Z.test for the difference between two proportions should meet two assumptions:
+
+- The sample size is sufficient to ensure that z is nearly normally distributed.\ 
+- The treatment group's sample (average high beauty rating) is a simple random sample drawn from population 1, whereas the control group's sample (average low beauty rating) is an independent simple random selection drawn from population 2 (average low beauty rating). That is, observations within and between groups are independent of one another.
+
+### Ethnicity
+
+Two sample Hypothesis test of proportion of courses with minority professor between courses with professor being higher or equal to average beauty rating 4.42 and professor with lower average beauty rating than 4.42.\
+
+The Null Hypothesis is $p_{high.bty}= p_{low.bty}$; it means the population proportion of courses with minority professor for courses with high beauty rating professor is the same as the ones with low beauty rating.\
+The Alternative Hypothesis is $p_{high.bty}\neq p_{low.bty}$; it means the population proportion of courses with minority professor for courses high beauty rating professor is not the same as the ones with low beauty rating.\
+
+*Note: *\
+$p_{high.bty}$ representing the population proportion of courses with minority professor for courses with high beauty rating professor.
+$p_{low.bty}$ representing the population proportion of courses with minority professor for courses with high beauty rating professor.
+
+```{r, include=FALSE}
+ethnicity0<- df_matched %>% filter(bty_high == 0) %>% summarise(sum(ethnicity == "minority")) %>% as.numeric()
+ethnicity1<- df_matched %>% filter(bty_high == 1) %>% summarise(sum(ethnicity == "minority")) %>% as.numeric()
+z <- prop.test(x = c(ethnicity0,ethnicity1), n = c(nrow(df_matched)/2, nrow(df_matched)/2), alternative = "two.sided", correct = TRUE)
+z
+```
+
+\begin{table}[h]
+\begin{center}
+\caption{Result of proportion test for ethnicity}
+
+\begin{tabular}{|c|c|}
+\hline
+  test stat  & p-value\\
+  \hline
+  `r sqrt(z$statistic)` & `r z$p.value`\\
+  \hline
+\end{tabular}
+\end{center}
+
+\end{table}
+
+We found the test statistic for two sample proportion test (z test) is **`r sqrt(z$statistic)`**, the corresponding p-value of **`r z$p.value`** means we fail to reject the null hypothesis. Thus, we suggest that the population proportion of courses with minority professor for courses with high beauty rating professor is the same as the ones with low beauty rating.
+
+
+### Number of Professors Teaching Sections in Course
+
+
+Two sample Hypothesis test of proportion of professors teaching single section in course between courses with professor being higher or equal to average beauty rating 4.42 and professor with lower average beauty rating than 4.42.\
+
+The Null Hypothesis is $p_{high.bty}= p_{low.bty}$; it means the population proportion of professors teaching single section in course for courses with high beauty rating professor is the same as the ones with low beauty rating.\
+The Alternative Hypothesis is $p_{high.bty}\neq p_{low.bty}$; it means the population proportion of professors teaching single section in course for courses high beauty rating professor is not the same as the ones with low beauty rating.\
+
+*Note:*\ 
+$p_{high.bty}$ representing the population proportion of professors teaching single section in course for courses with high beauty rating professor.
+$p_{low.bty}$ representing the population proportion of professors teaching single section in course for courses with high beauty rating professor.
+
+```{r, echo= FALSE}
+profs0<- df_matched %>% filter(bty_high == 0) %>% summarise(sum(cls_profs == "single")) %>% as.numeric()
+profs1<- df_matched %>% filter(bty_high == 1) %>% summarise(sum(cls_profs == "single")) %>% as.numeric()
+z1 <- prop.test(x = c(profs0,profs1), n = c(nrow(df_matched)/2, nrow(df_matched)/2), alternative = "two.sided", correct = TRUE)
+```
+
+\begin{table}[h]
+\begin{center}
+\caption{Result of proportion test for number of sections}
+
+\begin{tabular}{|c|c|}
+\hline
+  test stat  & p-value\\
+  \hline
+  `r sqrt(z1$statistic)` & `r z1$p.value`\\
+  \hline
+\end{tabular}
+\end{center}
+
+\end{table}
+
+We found the test statistic for two sample proportion test (z test) is **`r sqrt(z1$statistic)`**, the corresponding p-value of **`r z1$p.value`** means we fail to reject the null hypothesis. Thus, we suggest that the population proportion of professors teaching single section in course for courses with high beauty rating professor is the same as the ones with low beauty rating.
+
+
+### Gender
+
+
+Two sample Hypothesis test of proportion of courses taught by male professors between courses with professor being higher or equal to average beauty rating 4.42 and professor with lower average beauty rating than 4.42.\
+
+The Null Hypothesis is $p_{high.bty}= p_{low.bty}$; it means the population proportion of taught by male professors for courses with high beauty rating professor is the same as the ones with low beauty rating.\
+The Alternative Hypothesis is $p_{high.bty}\neq p_{low.bty}$; it means the population proportion of taught by male professors for courses high beauty rating professor is not the same as the ones with low beauty rating.\
+
+*Note:*\ 
+$p_{high.bty}$ representing the population proportion of taught by male professors for courses with high beauty rating professor.
+$p_{low.bty}$ representing the population proportion of taught by male professors for courses with high beauty rating professor.
+
+```{r, echo= FALSE}
+gender0<- sum(df_matched$gender[df_matched$bty_high == 0] == "male")
+gender1<- sum(df_matched$gender[df_matched$bty_high == 1] == "male")
+
+z2 <- prop.test(x = c(gender0,gender1), n = c(nrow(df_matched)/2, nrow(df_matched)/2), alternative = "two.sided", correct = TRUE)
+```
+
+\begin{table}[h]
+\begin{center}
+\caption{Result of proportion test for gender}
+
+\begin{tabular}{|c|c|}
+\hline
+  test stat  & p-value\\
+  \hline
+  `r sqrt(z2$statistic)` & `r z2$p.value`\\
+  \hline
+\end{tabular}
+\end{center}
+
+\end{table}
+
+We found the test statistic for two sample proportion test (z test) is **`r sqrt(z2$statistic)`**, the corresponding p-value of **`r z2$p.value`** means we fail to reject the null hypothesis. Thus, we suggest that the population proportion of taught by male professors for courses with high beauty rating professor is the same as the ones with low beauty rating.
+
+
+
+### Class Level
+
+
+Two sample Hypothesis test of proportion of upper level courses between courses with professor being higher or equal to average beauty rating 4.42 and professor with lower average beauty rating than 4.42.\
+
+The Null Hypothesis is $p_{high.bty}= p_{low.bty}$; it means the population proportion of upper level courses for courses with high beauty rating professor is the same as the ones with low beauty rating.\
+The Alternative Hypothesis is $p_{high.bty}\neq p_{low.bty}$; it means the population proportion of upper level courses for courses high beauty rating professor is not the same as the ones with low beauty rating.\
+
+*Note:*\ 
+$p_{high.bty}$ representing the population proportion of upper level courses for courses with high beauty rating professor.
+$p_{low.bty}$ representing the population proportion of upper level courses for courses with high beauty rating professor.
+
+```{r, echo= FALSE}
+cls_level0<- sum(df_matched$cls_level[df_matched$bty_high == 0] == "upper")
+cls_level1<- sum(df_matched$cls_level[df_matched$bty_high == 1] == "upper")
+
+z3 <- prop.test(x = c(cls_level0,cls_level1), n = c(nrow(df_matched)/2, nrow(df_matched)/2), alternative = "two.sided", correct = TRUE)
+```
+
+\begin{table}[h]
+\begin{center}
+\caption{Result of proportion test for class level}
+
+\begin{tabular}{|c|c|}
+\hline
+  test stat  & p-value\\
+  \hline
+  `r sqrt(z3$statistic)` & `r z3$p.value`\\
+  \hline
+\end{tabular}
+\end{center}
+
+\end{table}
+
+We found the test statistic for two sample proportion test (z test) is **`r sqrt(z3$statistic)`**, the corresponding p-value of `r z3$p.value` means we fail to reject the null hypothesis. Thus, we suggest that the population proportion of upper level courses for courses with high beauty rating professor is the same as the ones with low beauty rating.
+
+All z.test indicates large pvalues, so the observations are effectively matched.
+
+## \textcolor{blue}{Multiple Linear Regression Model}
+
+```{r, echo=FALSE}
+propensity_score_regression <- lm(score ~ ethnicity + cls_profs + gender + cls_level + bty_high ,
+                                   data = df_matched)
+#install.packages("huxtable")
+
+knitr::kable(broom::tidy(propensity_score_regression), caption = "Result of Multiple Linear Regression Model")
+```
+
+$$Score = 3.917 +0.161x_1 + 0.274 x_2 -0.056 x_3 + 0.148 x_4 -0.133 x_5 + \epsilon_i $$
+
+- $Y$ is Score (average professor evaluation score). Average professor evaluation score with 1 as the lowest and 5 as the highest. 
+- $\beta_0 = 3.917$ : Interception of linear regression line. The expected value of average professor evaluation score for the professor is a minority and female who teaches lower level course and has average beauty rating being lower than the mean of all professors' from all courses, which means when $X_i = 0$, $i= 1, 2, 3, 4, 5$\
+- $\beta_1 = 0.274$ : Dummy variables of ethnicity of professor. When the ethnicity of professor changes from minority not minority, the expected average professor evaluation score is expected to increase 0.274, holding all other predictor variables constant\
+- $\beta_2 = -0.056$ : Dummy variables of number of professors teaching sections in course in sample. When the number of professors teaching sections in course changes from multiple to single, the expected average professor evaluation score is expected to fall 0.056, holding all other predictor variables constant\
+- $\beta_3 = 0.148$ : Dummy variables of gender of professor. When the gender of professor changes from female to male , the expected average professor evaluation score is expected to rise 0.148, holding all other predictor variables constant\
+- $\beta_4 = -0.133$ : Dummy variables of class level. When class level changes from lower to upper level, the expected average professor evaluation score is expected to fall 0.133, holding all other predictor variables constant\
+- $\beta_5 = 0.161$ : Dummy variables of average beauty rating of professor. When average beauty rating of a professor changes from lower than average score of professors from all courses to being higher, the expected average professor evaluation score is expected to increase by 0.161, holding all other predictor variables constant.\
+- $\epsilon_i$ is the $i^{th}$ error term for this regression model.\
+
+All analysis for this section was programmed using R version 4.1.2. I used the lm() function in base R to derive the estimates of linear regression in this section (lm: Fitting Linear Models, n.d.). 
+
+I used kable (Hao Zhu, 2021) to create table
+
+## Result Conclusion
+
+  The multiple linear regression shows that, by considering all other variables constant, course's professor with average beauty rating being higher than the mean of all professors' from all courses, on average, has higher average professor evaluation score `r propensity_score_regression$coefficients[6]` than course' professor with lower average beauty rating than 4.42. Also, as the corresponding p-value is`r propensity_score_regression$p.value`, the result is significant in this study, which means we need to reject the hypothesis.
+  
+  The two-sample hypothesis test shows no evidence of the difference between higher average beauty rating and lower average beauty rating professors regarding average professor evaluation scores. The contradiction between the propensity score-matched multiple linear regression model and the two-sample hypothesis test shows that the confounding variables, including ethnicity, gender, class level, and the number of professors teaching sections in the course in the sample, actually exist. To the greatest extent, I have eliminated their effects on the variables I study (professor beauty rating and professor evaluation score). 
+  
+  All in all, there is **causal inference between professor evaluation score and professor beauty rating**. 
+
+
+# Conclusion
+
+   We begin this study by considering the impact of the attractiveness of professors on their satisfaction rate and wonder if it gives us some information about the effect on achievement as a result of productivity or discrimination. Many studies have shown that attractive people are more popular and talented. Webster and Driskell (1983) presented participants with pairs of photos of a beautiful and an ugly individual. The lovely person received a higher rating when participants were asked to compare the two individuals on intelligence and reading ability attributes. Not surprisingly, our study also confirms it. 
+
+   Using the data from courses and professors evaluations collected by the University of Texas at Austin, we discover a positive connection between professor evaluation scores and beauty rating levels. In general, students feel more satisfied with a professor with an attractive appearance. This result confirms our hypothesis and is consistent with previous studies.
+
+   Besides, the result of two-sample hypothesis test shows that we do not have evidence to reject the null hypothesis, so the population average professor evaluation scores are the same for the professor who has average beauty rating higher or equal to `r round(mean(df$bty_avg), 2)` and the professor who has lower average beauty rating than `r round(mean(df$bty_avg), 2)`. However, we discover that beauty rating is a significant predictor for professor evaluation score after doing propensity score matching. Therefore, ethnicity, gender, class level, number of sections in the professors' course are confounding variables in this study. We need to eliminate their influence as much as possible by propensity score matching. After all, we find that beauty rating and evaluation score have casual inference. We first fail to see their relationship with the two-sample mean test because of confounding variables. 
+
+   Another essential issue that comes out from this study is that if it is because students are discriminating against ugly instructors, they give them lower evaluation scores. Satisfaction with Professors should be estimated by how much they learn during class and how helpful the course is. However, the result indicates that students might learn more from good-looking teachers and only try to pay more attention to the appearance of teachers instead of the content of courses. In other words, the high evaluation score is a kind of beauty pays.\
+
+
+## Limitations and futher study
+
+In this study, all variables are categorical, so the model lacks numerical variables. Besides, this data is from academic years 2001-2002, and it is not up-to-date. Moreover, the propensity score matching method is unable to remove the remaining unmeasured confounders, and the outcome might remain biased. Also, we cannot check the relationship between professor evaluation score and other variables such as rank, age, and language since we only focus on beauty ratings. In the original study, non-tenure-track professors obtain higher course evaluations than tenure-track academics. This may be because they are primarily teachers rather than those who combine teaching and research, or it may be due to the incentives (in terms of reappointment and income) they face to satisfy their pupils. And non-native English speakers receive substantially lower ratings than do natives (Hamermesh & Parker, 2005). In the further study, we want to find if discriminations on gender, ethnicity and language influence the preference of professors and evaluation score. It is good to see any change in the result after a decade with an up-to-date data set. After the improvement of education and development of technology, discrimination should be reduced, and we hope to see a fair society for everyone instead of judging people with their looking.  
+
+
+
+# Bibliography
+```{r, include = FALSE}
+citation("broom")
+citation("kableExtra")
+citation("tidyverse")
+citation("rmarkdown")
+citation("knitr")
+```
+1. David Robinson, Alex Hayes and Simon Couch (2021). broom: Convert Statistical Objects into Tidy Tibbles. R package version 0.7.9. https://CRAN.R-project.org/package=broom \
+2. Hamermesh, D. S. (2013). Beauty pays: Why attractive people are more successful. Princeton University Press. \
+3. Hamermesh, D. S., &amp; Parker, A. (2005). Beauty in the classroom: Instructors’ pulchritude and putative pedagogical productivity. Economics of Education Review, 24(4), 369–376. https://doi.org/10.1016/j.econedurev.2004.07.013 \
+4. Hao Zhu (2021). kableExtra: Construct Complex Table with 'kable' and Pipe Syntax. R package version 1.3.4. https://CRAN.R-project.org/package=kableExtra \
+5. JJ Allaire and Yihui Xie and Jonathan McPherson and Javier Luraschi and Kevin Ushey and Aron Atkins and Hadley Wickham and Joe Cheng and Winston Chang and Richard Iannone (2021). rmarkdown: Dynamic Documents for R. R package version 2.11. URL https://rmarkdown.rstudio.com. \
+6. Stehle, S., Spinath, B., & Kadmon, M. (2012). Measuring teaching effectiveness: Correspondence between students’ evaluations of teaching and different measures of student learning. Research in Higher Education, 53(8), 888–904. https://doi.org/10.1007/s11162-012-9260-9 \
+7. Westfall, R., Millar, M., & Walsh, M. (2016). Effects of instructor attractiveness on learning. The Journal of General Psychology, 143(3), 161–171. https://doi.org/10.1080/00221309.2016.1200529 \
+8. Webster, M., & Driskell, J. E. (1983). Beauty as status. American Journal of Sociology, 89(1), 140–165. https://doi.org/10.1086/227836\
+9. Wickham et al., (2019). Welcome to the tidyverse. Journal of Open Source Software, 4(43), 1686, https://doi.org/10.21105/joss.01686 \
+10. Yihui Xie (2021). knitr: A General-Purpose Package for Dynamic Report Generation in R. R package version 1.36.\
+
+
+# Appendix
+
+## Ethics Statement
+
+I consciously assure that for the manuscript *Analysis the Effects of Beauty on Instructors' Satisfaction Score* the following is fulfilled:\
+1) This material is the authors' own original work, which has not been previously published elsewhere.\
+2) The paper reflects the authors' own research and analysis in a truthful and complete manner. The data and analysis follows the requirement of transparency.\
+5) The results are appropriately placed in the context of prior and existing research.\
+6) All sources used are properly citation in my bibliography.\
+7) Results obtained in a statistical analysis of a data set from an observational study can be achieved again with a high degree of reliability when the study is replicated.\
+8) The dataset used in the report is from open data. Other people can duplicate and verify research findings.\
+9) I verifies assumptions in the report.\
+
+
+## Materials
+```{r}
+head(evals)
+head(df, n=10)
+head(df_matched, n =10)
+```
+
