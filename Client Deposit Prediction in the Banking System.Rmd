@@ -1,0 +1,587 @@
+---
+title: "Client Deposit Prediction in the Banking System"
+output:   
+  bookdown::pdf_document2:
+    keep_tex: true
+    number_sections: yes
+    toc: false
+base_format: rticles::elsevier_article
+date: '`r format(Sys.time(), "%B %d, %Y")`'
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#install.packages("tidymodels")
+library(tidyverse)
+library(tidymodels)
+library("openintro")
+library("tidyverse")
+library("broom")
+library("kableExtra")
+library("dplyr")
+set.seed(1)
+```
+
+
+# Introduction
+
+A common tactic to grow business is to engage in marketing and sales initiatives. When reaching client segments to achieve a specific objective, businesses utilize direct marketing. The operation of managing campaigns is facilitated by centralizing client remote interactions in a contact center. These facilities enable communication with clients via a variety of means, with the telephone (fixed-line or mobile) being one of the most popular.\
+From May 2008 to November 2010, Portuguese banking institution conducted direct telemarketing campaigns. In often cases, more than one contact to the same client was necessary for the client to subscribe to a term deposit(Moro et al., 2014). Since cost-sensitive methods are used to evaluate the success of the telemarketing campaigns, as much as the result of the marketing campaign is significant, improving the efficiency of the telemarketing process is also a major goal (Ghatasheh et al., 2010).\
+From this data set, we aim to answer: *Do these 20 predictors have a significant relationship with predicting whether the client will subscribe to a term deposit (variable y)? To what extent can we predict and how accurate is this prediction?*
+
+In this report, we apply several prediction methods such as K-Nearest Neighbors for Regression, Bootstrap, Logistic Regression, Bagging and Random Forests, and Boosting. Firstly, we aim to find the optimal K corresponding to one model that can give minimal test error with KNN. Second, we apply bootstrap to compute the estimate of the standard error of a coefficient and approximate confidence intervals for a population parameter (probability of subscription to a term deposit). Also, a logistic regression is used to check the impact of the variables on whether the client will subscribe to a term deposit, and a classification tree is applied for a clear demonstration. Lastly, we use bagging and boosting to measure the accuracy of the prediction, where these methods are helpful to reduce the variance and improve the accuracy. In this case, we use random forests, adaptive boosting, and gradient boosting methods.\  
+There are 4 major parts in the report. Section 2 describes the data collection procedure, and the data set used to predict if the client will subscribe a term deposit (variable y). Section 3 introduces the study's methodology and models. Section 4 discusses and interprets the findings from our analysis of these issues. Section 5 discusses the analysis's implications for understanding the effect on subscription resulting from market selling. 
+
+
+
+# Data
+## Collection Process
+The data collected from a Portuguese retail bank is related with direct marketing campaigns，from May 2008 to June 2013, in total of 52944 phone contacts. The marketing campaigns were based on phone calls. In general, more than one contact to the same client was required in order to access if the product (bank term deposit) would be ('yes') or not ('no') subscribed. We decided to use bank additional full data set with 41188 examples and 20 inputs, ordered by date which is from May 2008 to November 2010.
+
+```{r, include = FALSE}
+# Downloads the zip file, and unzips the required csv file into our data folder
+#url = "https://archive.ics.uci.edu/ml/machine-learning-databases/00222/bank-additional.zip"
+#download.file(url,"data/bank-additional.zip")
+#unzip("data/bank-additional.zip", exdir="data/")
+
+#bankdata <- read_csv2("data/bank-additional-full.csv")
+bankdata <- read_csv2("/Users/jinshuyue/Desktop/project/bank-additional/bank-additional-full.csv")
+bankdata <- bankdata %>% rename(Subscription = y)
+bankdata<- na.omit(bankdata)
+bankdata$Subscription = as.factor(bankdata$Subscription)
+bankdata$job = as.factor(bankdata$job)
+bankdata$month = as.factor(bankdata$month)
+bankdata$education = as.factor(bankdata$education)
+bankdata$marital = as.factor(bankdata$marital)
+bankdata$default = as.factor(bankdata$default)
+bankdata$housing = as.factor(bankdata$housing)
+bankdata$loan = as.factor(bankdata$loan)
+bankdata$contact = as.factor(bankdata$contact)
+bankdata$day_of_week = as.factor(bankdata$day_of_week)
+bankdata$poutcome = as.factor(bankdata$poutcome)
+bankdata$age = as.numeric(bankdata$age)
+bankdata$duration = as.numeric(bankdata$duration)
+bankdata$campaign = as.numeric(bankdata$campaign)
+bankdata$pdays = as.numeric(bankdata$pdays)
+bankdata$previous = as.numeric(bankdata$previous)
+bankdata$emp.var.rate = as.numeric(bankdata$emp.var.rate)
+bankdata$cons.price.idx = as.numeric(bankdata$cons.price.idx)
+bankdata$cons.conf.idx = as.numeric(bankdata$cons.conf.idx)
+bankdata$euribor3m = as.numeric(bankdata$euribor3m)
+bankdata$nr.employed = as.numeric(bankdata$nr.employed)
+head(bankdata) #appendix
+```
+
+
+
+
+## Data cleaning & Important variables
+ 
+Within the original data set provided by the bank, four types of information were provided.
+
+- *Subscription*: Response variable; has the client subscribed a term deposit? (binary: 'yes','no')
+
+- *Bank Client Data*\
+Bank client data includes categorical information about the client: age, job, marital status, education level, credit in default, whether the client has a housing loan. This basic categorical information about the client helps directly indicating how influential other attributes will be towards subscribing to a term deposit since it is information about the client himself that the bank will contact. 
+
+- *Attributes Related to Last Contact (during the current telemarketing campaign)*\
+Attributes related to the last contact with the client include information related to the last telephone call made with the client during the current campaign. This information is: contact communication type (cellular/phone), month, day of the week contacted(Mon to Sun), and numerical duration of how long the contact duration was. Especially, duration of contact information is crucial, since this information can not only be pre-collected before the campaign but also highly affects the result since duration time of ‘0’ would lead to y=‘no.’
+
+- *Information Related to Telemarketing Campaign for a specific client*\
+This attribute includes information about how the campaign working for each client. [Campaign] indicates the number of contacts performed during the campaign for this client, [pday] indicates the number of days passed after the previous campaigns last contact, [previous] number of contacts performed before this campaign started, and [poutcome] indicates whether the previous marketing campaign was successful or failure. Although the information may not be directly related to the current marketing campaign, past campaign histories may help to construct a predictive model. 
+
+- *Social and Economic context Attribute*\
+Such information is related to social and economic context during the current marketing period, which might influence the clients' decisions. These include the employment variation rate, consumer price index, consumer confidence, Euribor 3-month rate, and the number of people employed. While the information may not seem to be directly related to the one client contacting, it is undoubtedly an indirect economic force that influences general crowds’ financial situation within the country, and era. 
+
+Since some categorical predictors contain answers of "unknown", we need to remove the observations to reduce invaluable information. 
+```{r, echo = FALSE}
+bankdata <- bankdata %>% filter(job != "unknown") 
+bankdata <- bankdata %>% filter(marital != "unknown")
+bankdata <- bankdata %>% filter(education != "unknown")
+bankdata <- bankdata %>% filter(default != "unknown")
+bankdata <- bankdata %>% filter(housing != "unknown") 
+bankdata <- bankdata %>% filter(loan != "unknown")
+```
+
+
+
+
+However,the data set is unbalanced, as only 3859 (13.09%) records are related with successes (table 1), which requires us to do random oversampling to duplicate examples from the minority class -- records related with successes. In this way, we would not lose information to a model.  
+
+```{r, echo = FALSE, warning = FALSE}
+#form a table that contains age average, duration average, campaign average and count of each class
+summary_table1 <- bankdata %>% group_by(Subscription) %>% summarize(Count = n())
+kable(summary_table1, caption="Number of successful/failed cases before oversampling")
+
+#3859/(26629+2859)
+```
+
+```{r, echo = FALSE, warning = FALSE}
+n<-nrow(bankdata)
+majorind=(1:n)[bankdata$Subscription == "no"]
+minorind=(1:n)[bankdata$Subscription == "yes"]
+majorn=length(majorind)
+minorn=length(minorind)
+
+OSind=sample(minorind,majorn-minorn,replace=TRUE)
+new_bankdata<-rbind(bankdata,bankdata[OSind,])
+new_bankdata <- na.omit(new_bankdata)
+```
+After random oversampling, both successful and failed cases are in the equal size with 36548 examples (table 2) and the data is balanced. 
+```{r, echo = FALSE, warning = FALSE}
+#form a table that contains age average, duration average, campaign average and count of each class
+summary_table2 <- new_bankdata %>% group_by(Subscription) %>% summarize(Count = n())
+kable(summary_table2, caption="Number of successful/failed cases after oversampling")
+```
+
+We split the oversampling data set into training data (75%) and test data (25%). The dataframes for both data sets are in appendix.
+```{r, echo = FALSE, warning = FALSE}
+## Create training data set
+bank_split <- new_bankdata %>% initial_split(prop = 0.75, strata = Subscription)
+bank_train0 <- training(bank_split)
+bank_test0 <- testing(bank_split)
+```
+
+For deeper and easier demonstration, we visualize the some relationship between response variable the predictors.
+
+```{r, fig.width=6, fig.height=3, echo = FALSE, message = FALSE, warning = FALSE, fig.cap = "Histogram of last contact duration in seconds (Yes/No Subscription)"}
+new_bankdata %>%
+  mutate(text = fct_reorder(Subscription, duration)) %>%
+  ggplot(aes(x=duration, fill=Subscription)) +
+    geom_histogram(breaks = seq(0, 2500, by = 20)) +
+  scale_fill_manual(values = c("orange", "olivedrab2") )+
+    theme(
+      legend.position="none",
+      panel.spacing = unit(0.1, "lines"),
+      strip.text.x = element_text(size = 8),
+        axis.title.x = element_text(size = 10),
+  axis.text.x = element_text(size = 10),
+  axis.title.y = element_text(size = 8)
+    ) + 
+    xlab("Last contact duration in seconds") +
+    ylab("Frequency") + ggtitle("Distribution of last contact duration in seconds") +
+    facet_wrap(~text)
+```
+
+
+```{r, echo= FALSE, message = FALSE}
+#High
+summary_1 <- new_bankdata %>% filter(Subscription == "yes") %>%summarise(
+                                  min = min(duration),
+                                  max = max(duration),
+                                  median = median(duration),
+                                  IQR = quantile(duration,0.75) - quantile(duration,0.25),
+                                  mean = mean(duration),
+                                  sd = sd(duration))
+```
+
+
+```{r, echo= FALSE, message = FALSE}
+#Low
+summary_2 <- new_bankdata %>% filter(Subscription == "no") %>% summarise(
+                                  min = min(duration),
+                                  max = max(duration),
+                                  median = median(duration),
+                                  IQR = quantile(duration,0.75) - quantile(duration,0.25),
+                                  mean = mean(duration),
+                                  sd = sd(duration))
+```
+
+```{r,echo=FALSE, warning= FALSE}
+T0 <- full_join(x=summary_1, y=summary_2, 
+                by = c("min","max", "median","IQR","mean","sd"))
+
+rownames(T0) <- c("yes", "no")
+kable(T0, caption="Summary table of last contact duration in seconds")
+```
+
+Whether a client subscribe a term deposit or not is our response variable in the study. It is a categorical variable. Looking at the score distribution (Figure 1), both of the distribution are right-skewed, which means last contact duration is short in general. The summary table (table 3) shows that the mean duration of last contact is 528.48 seconds for the clients who subscribe a term deposit. The median is smaller than the mean, which is 414 seconds. While, the mean duration of last contact is 220.28 seconds for the clients who do not subscribe a term deposit, and the median is a little smaller than the mean, which is 163 seconds. It refers to the distribution for both groups as what is mentioned above. The minimum duration of last contact is 37 seconds for the clients who subscribe a term deposit, while 0 seconds for the clients who do not subscribe a term deposit. The maximum duration of last contact is 4199 seconds for the clients who subscribe a term deposit, while 4918 seconds for the clients who do not subscribe a term deposit. Also, standard deviations for the clients who subscribe a term deposit is 393.13 seconds and 209.26 seconds for the clients who do not subscribe a term deposit. It indicates that the spreads of both data sets are very large. 
+
+All analysis for this report was programmed using R version 4.1.2. The barplot and histogram in this section were created using the ggplot2 package (Pedersen, 2021).
+
+
+```{r, fig.width=6, fig.height=3, echo = FALSE, message = FALSE, warning = FALSE, fig.cap = "Barplot of last contact day of the week"}
+new_bankdata %>% ggplot(aes(x = Subscription, fill = education)) +
+  geom_bar() + theme_classic()+ theme(
+        axis.title.x = element_text(size = 9),
+  axis.title.y = element_text(size = 9),plot.title = element_text(size = 10)
+    )+
+  labs(x = "Subscription results", y = "Frequency", title = "Barplot of education level")+ scale_fill_manual(values = c(
+    "basic.4y" = "#b2182b",
+    "basic.6y"="#ef8a62",
+    "basic.9y"="#fddbc7",
+    "high.school" = "#f7f7f7",
+    "illiterate"="#d1e5f0",
+    "professional.course"="#67a9cf",
+    "university.degree"="#2166ac"))
+```
+   
+The predictor education refers to clients' education level, which is a categorical variable containing basic 4 years, basic 6 years, basic 9 years, high school, illiterate, professional course, university degree. The clients with university degree have the largest proportion of clients who have subscribed a short term deposit. The clients with basic 6-year education have the smallest proportion of clients who have subscribed a short term deposit. 
+
+
+# Method
+1. KNN (Valudation-set Approach, F-fold cross Validation)
+2. Logistic Regression (AIC, BIC, Ridge, LASSO)
+3. Classification tree (w/wo cv)
+4. Bagging (different mtry)
+5. Boosting (Gradient Boosting, Adaptive Boosting)
+
+
+#Results
+
+## KNN
+
+We start modelling by using cross validation to determine the K value. (how many nearest neighbours are we taking into consideration)\
+
+We change the categorical/factor variables into numerical variable by applying multiple hot encoding to perform the KNN model.
+
+```{r}
+#install.packages("mltools")
+library(data.table)
+library(mltools)
+```
+
+
+**Valudation-set Approach**
+
+```{r, echo = FALSE}
+library(class) #knn
+X.train.mean=apply(Filter(is.numeric, bank_train0),2,mean)
+X.train.sd=apply(Filter(is.numeric, bank_train0),2,sd)
+X.train.sd[X.train.sd==0]=1 
+
+train.X1<- bank_train %>% select(-Subscription) %>% as.data.table() %>% one_hot()
+test.X1<- bank_test %>% select(-Subscription) %>% as.data.table() %>% one_hot()
+
+
+
+train.X <- lapply(train.X, function(z) if(is.numeric(z)){
+                     scale(z, center=TRUE, scale=TRUE)
+                      } else z) %>% data.frame()
+
+test.X <- lapply(test.X, function(q) if(is.numeric(q)){
+                     scale(q, center=TRUE, scale=TRUE)
+                      } else q) %>% data.frame()
+
+train.Subscription <- bank_train0 %>% select(Subscription)
+test.Subscription <- bank_test0 %>% select(Subscription)
+
+ntrain=nrow(train.X)
+pdtrainind <- sample(ntrain, 0.7*ntrain)
+pdtrain.X <- train.X[pdtrainind,]
+pdtest.X <- train.X[-pdtrainind,]
+pdtrain.Subscription <- train.Subscription[pdtrainind,]
+pdtest.Subscription <- train.Subscription[-pdtrainind,]
+ErrTe=0; Kmax=10
+for(k in 1:Kmax){
+  knn.pred <- knn(train = pdtrain.X, test = pdtest.X, cl = pdtrain.Subscription, k = k)
+  ErrTe[k]=mean(knn.pred != pdtest.Subscription)
+  print(ErrTe)
+}
+plot(ErrTe,type="b", ylim = c(0.00,0.16))
+which.min(ErrTe)
+```
+
+**F-fold cross Validation**
+```{r, echo = FALSE}
+F <- 10
+folds <- cut(seq(1,ntrain), breaks = F, labels = FALSE)
+folds <- folds[sample(ntrain)]
+
+Kmax=50
+ErrCV <- matrix(0, nrow=F, ncol=20)
+for (f in 1:F) {
+  # Pseudo train-test split
+  pdtrainind <- which(folds != f)
+  pdtrain.X <- train.X[pdtrainind,]
+  pdtest.X <- train.X[-pdtrainind,]
+  pdtrain.Subscription <- train.Subscription[pdtrainind,]
+  pdtest.Subscription <- train.Subscription[-pdtrainind,]
+  
+  for(k in 1:10){
+    # Model fitting
+    knn.pred <- knn(train = pdtrain.X, test = pdtest.X, cl = pdtrain.Subscription, k = k)
+    
+    # Error
+    ErrCV[f,k]=mean(knn.pred != pdtest.Subscription)
+  }
+}
+CV <- apply(ErrCV, 2, mean)
+plot(CV,type="b")
+
+which.min(CV)
+```
+
+
+
+## Logistic Regression
+```{r, echo=FALSE}
+bank_fit <- glm(Subscription ~ .,
+                        family = binomial,
+                        data = bank_train0)
+
+knitr::kable(broom::tidy(bank_fit), caption = "Result of Logistic Regression Model (full predictors)")
+
+pred.y <- predict(bank_fit, bank_test0[0:20], type = "response")
+glm.predict = ifelse(pred.y>0.5,"yes","no")
+truePred = bank_test0$Subscription
+mean(glm.predict == truePred)
+table(glm.predict, truePred)
+```
+
+*Variables selection Based on AIC*
+```{r, echo = FALSE}
+library(MASS)
+
+#forward (AIC=27909.17)
+fAIC = stepAIC(glm(Subscription~1, family = binomial, data = bank_train0),
+               scope = list(upper = glm(Subscription ~., family = binomial, data = bank_train0)),
+               direction = "forward", k=2)
+
+#backward (AIC=27909.17)
+bAIC = stepAIC(glm(Subscription~., family = binomial, data = bank_train0),
+               scope = list(upper = glm(Subscription ~., family = binomial, data = bank_train0)),
+               direction = "backward", k=2)
+
+#stepwise (AIC=27909.17)
+stepAIC(glm(Subscription~.,family = binomial,  data =  bank_train0), direction = "both", k=2)
+bank_fit_sAIC <- glm(Subscription ~ job + marital + education + contact + month + 
+    day_of_week + duration + campaign + pdays + poutcome + emp.var.rate + 
+    cons.price.idx + cons.conf.idx + euribor3m + nr.employed,
+                        family = binomial,
+                        data = bank_train0)
+knitr::kable(broom::tidy(bank_fit_sAIC), caption = "Result of Logistic Regression Model (AIC selection)")
+
+pred.y_AIC <- predict(bank_fit_sAIC, bank_test0[0:20], type = "response")
+glm.predict_AIC = ifelse(pred.y_AIC>0.5,"yes","no")
+mean(glm.predict_AIC == truePred)
+table(glm.predict_AIC, truePred)
+
+## Based on BIC ##
+#forward (BIC=28231.12)
+fBIC = stepAIC(glm(Subscription~1, family = binomial, data = bank_train0),
+               scope = list(upper = glm(Subscription ~., family = binomial, data = bank_train0)),
+               direction = "forward", k=log(nrow(bank_train0)))
+bank_fit_fBIC <- glm(Subscription ~  duration + euribor3m + month + poutcome + nr.employed + 
+    job + emp.var.rate + cons.price.idx + cons.conf.idx + pdays + 
+    campaign,family = binomial, data = bank_train0)
+knitr::kable(broom::tidy(bank_fit_fBIC), caption = "Result of Logistic Regression Model (forward BIC)")
+
+pred.y_fBIC <- predict(bank_fit_fBIC, bank_test0[0:20], type="response")
+glm.predict_fBIC = ifelse(pred.y_fBIC>0.5,"yes","no")
+mean(glm.predict_fBIC == truePred)
+table(glm.predict_fBIC, truePred)
+
+
+#stepwise (BIC=28230.74)
+sBIC = stepAIC(glm(Subscription~.,family = binomial,  data =  bank_train0), direction = "both", k=log(nrow(bank_train0)))
+bank_fit_sBIC <- glm(Subscription ~ job + month + duration + campaign + pdays + poutcome + 
+    emp.var.rate + cons.price.idx + cons.conf.idx + euribor3m
+,family = binomial, data = bank_train0)
+knitr::kable(broom::tidy(bank_fit_fBIC), caption = "Result of Logistic Regression Model (backward BIC)")
+
+pred.y_sBIC <- predict(bank_fit_sBIC, bank_test0[0:20], y = "response")
+glm.predict_sBIC = ifelse(pred.y_sBIC>0.5,"yes","no")
+mean(glm.predict_sBIC == truePred)
+table(glm.predict_sBIC, truePred)
+```
+
+```{r}
+library(glmnet)
+##Shrinkage method
+## Fit a ridge penalty ##
+model.ridge <- glmnet(x = model.matrix( ~ ., data = bank_train0), y = bank_train0$Subscription, family='binomial',
+                      standardize = T, alpha = 0)
+
+## Perform Prediction ##
+pred.y.ridge <- predict(model.ridge, newx = model.matrix( ~ ., data = bank_test0), family='binomial',type = "response")
+
+#mean(pred.y.ridge != truevalue )
+## Prediction error ##
+#mean((bank_test0$Subscription - pred.y.ridge)^2)
+
+
+
+
+## Fit a LASSO penalty ##
+model.lasso <- glmnet(x = model.matrix( ~ ., data = bank_train0), y = bank_train0$Subscription, family='binomial'
+                      , standardize = T, alpha = 1)
+
+
+## Perform cross validation to choose lambda ##
+set.seed(1)
+y=rep(1,nrow(bank_train0))
+y[bank_train$Subscription=="no"]=-1
+x <- model.matrix(Subscription ~ .,bank_train0)[, -1]
+grid <- seq(0,0.99,0.01)  
+lasso.cv <- cv.glmnet(x, y, alpha = 1)
+lasso.cv
+lasso.bestlam <- lasso.cv$lambda.min
+lasso.bestlam
+
+#Refit using the whole training set
+lasso.cvmod <- glmnet(x, y, alpha = 1, lambda = lasso.bestlam)
+
+#test prediction errors
+lasso.pred <- predict(lasso.cvmod,s=lasso.bestlam, newx = x.test)
+sum((lasso.pred - y.test) ^ 2)
+```
+
+
+## classification tree
+(a) Original tree
+```{r, echo = FALSE, warning=FALSE}
+library(tree) 
+classi.tree <- tree(as.factor(Subscription) ~ ., na.omit(bank_train0))
+classi.tree #normal tree
+plot(classi.tree)
+text(classi.tree)
+subscription.pred1 <- predict(classi.tree, newdata = bank_test0, type = "class")
+subscription.true <- bank_test0$Subscription
+table(subscription.pred1, subscription.true)
+mean(subscription.pred1 == subscription.true)
+```
+
+(b) cross-validation tree
+
+```{r, echo = FALSE, warning=FALSE}
+cv.classi.tree <- cv.tree(classi.tree, FUN = prune.misclass) 
+min.cv.classi <- cv.classi.tree$size[which.min(cv.classi.tree$dev)] 
+prune.classi.tree <- prune.tree(classi.tree, best = min.cv.classi) 
+prune.classi.tree
+
+plot(prune.classi.tree)
+text(prune.classi.tree)
+
+subscription.pred <- predict(prune.classi.tree, newdata = bank_test0, type = "class")
+table(subscription.pred, subscription.true)
+
+mean(subscription.pred == subscription.true)
+```
+
+
+## Bagging & Random Forests
+
+```{r, echo=FALSE, warning=FALSE}
+library(randomForest)
+bagging.cls <- randomForest(as.factor(Subscription) ~ ., 
+                       data = bank_train0,
+                       mtry = 20,
+                       ntree = 100,
+                       importance = TRUE)
+bagging.cls
+
+Sub.bagging <- predict(bagging.cls, newdata = bank_test0, type = "class")
+table(Sub.bagging, subscription.true)
+
+mean(Sub.bagging == subscription.true)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+library(randomForest)
+bagging2.cls <- randomForest(as.factor(Subscription) ~ ., 
+                       data = bank_train0,
+                       mtry = lasso.bestlam,
+                       ntree = 100,
+                       importance = TRUE)
+bagging2.cls
+
+Sub.bagging2 <- predict(bagging2.cls, newdata = bank_test0, type = "class")
+table(Sub.bagging2, subscription.true)
+
+mean(Sub.bagging2 == subscription.true)
+```
+When you test a model over the same data you used to create the model, you have overfitting (https://en.wikipedia.org/wiki/Overfitting) 
+b) when you use cross-validation, you expect to have less overfitting (https://tinyurl.com/yc43ae3l) but also a more realistic proxy for the accuracy
+
+```{r, echo=FALSE, warning=FALSE}
+rf.cls <- randomForest(as.factor(Subscription) ~ ., 
+                       data = bank_train0,
+                       mtry = sqrt(20),
+                       ntree = 100,
+                       importance = TRUE)
+rf.cls
+
+Sub.rf <- predict(rf.cls, newdata = bank_test0, type = "class")
+table(Sub.rf, subscription.true)
+
+mean(Sub.rf == subscription.true)
+```
+
+
+## Boosting: Gradient Boosting, Adaptive Boosting (AdaBoost)
+
+*Gradient Boosting*
+```{r, echo = FALSE, warning=FALSE}
+#install.packages("gbm")
+library(gbm)
+new_bank_train <- bank_train %>% mutate(Subscription = ifelse(Subscription == "yes", 1, 0))
+new_bank_test <- bank_test %>% mutate(Subscription = ifelse(Subscription == "yes", 1, 0))
+boost.reg <- gbm(Subscription ~ .,
+                 data = new_bank_train,
+                 distribution = 'bernoulli',  # bernoulli for classification
+                 n.trees = 500,
+                 interaction.depth = 1)
+boost.reg
+summary(boost.reg)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+Sub.boost <- predict(boost.reg, newdata = bank_test, n.trees = 5000)
+new_subscription.true <- new_bank_test$Subscription
+mean((na.omit(Sub.boost) - na.omit(new_subscription.true))^2)
+```
+
+*Adaptive Boosting*
+```{r, echo=FALSE, warning=FALSE}
+#install.packages("JOUSBoost")
+library(JOUSBoost)
+y=rep(1,nrow(bank_train))
+y[bank_train$Subscription=="no"]=-1
+x_train = model.matrix(Subscription ~., data = bank_train)
+x_train = x_train[,-1]
+x_test = model.matrix(Subscription ~., data = bank_test)
+x_test = x_test[,-1]
+
+ada.cls = adaboost(x_train,y,n_rounds = 10)
+ada.cls
+
+ada.pred = predict(ada.cls, x_test)
+ada.cm = table(ada.pred,bank_test$Subscription)
+ada.cm
+1-sum(diag(ada.cm))/sum(ada.cm)
+```
+
+
+## Result Conclusion
+
+# Conclusion
+
+## Limitations and futher study
+Our model's final accuracy of prediction is 0.883 which is expected given that the cross validation performed on the training set yielded similar results. Our original question is to what extend can these variables predict the clients action, and the result is looking pretty good. We expected these predictors to work because they are directly related to the client's willingness to deposit. And with a 88.3% accuracy, we feel that it is a valid model to be considered in the real world. If we are given more time, we could have included the other two variables and check if the accuracy goes up or down. But that would deviate us from our main question which regards only these factors easily measured in the real world (last contact duration, client's age, number of campaigns beforehand).
+
+Given the reports we referenced from "Business Analytics in Telemarketing", the banking industry has been seeking novel ways to leverage database marketing efficiency.This research proposed an enhanced telemarketing prediction model by determine k in classification model to improve the accuracy, which reaches 88% and relatively high. This supports the banking system to apply innovative data-driven decision-making process when dealing with customer behavior. Also, predicting the potential bank clients who are willing to apply for a term deposit would reduce marketing costs by saving wasted efforts and resources.
+
+In our common knowledge, Euribor 3-month rate indicates the supply and demand of short-term funds in financial markets. Maybe due to the data is not representative or limited, the Euribor 3 month rate is not a good predictor in our model. However, it is worth investigating how does the Euribor 3-month rate act in determining if a client will make a term deposit or not if we relate it to the client’s personal information such as the job or education level of the client. These economic forces ultimately affect the individuals' lives, as the country’s currency rate or export, import situation of businesses could change when global financial issues arise. Thus, with advanced knowledge to relate the datasets, such could be investigated from a macroeconomic perspective.
+
+Also, the bank’s telemarketing campaign aimed to increase the subscription of the term deposit (variable y). With further research and analysis of the clients, and the relationship of how their personal data lead to decisions made for subscription, better efficiency clients’ list can be made. In other words, with the current dataset we have, we could create another dataset, that includes clients with a higher acceptance rate to the marketing campaigns. Such indicators could be the client’s personal data - jobs, education level, and marital status. How do these attributes relate to the efficiency level of conducting phone calls to each client and if there is a relationship, how accurate could it be? Would it have over 80-85% accuracy level and be effective enough for other marketing campaigns to create a higher-acceptance level client list?
+
+
+# Bibliography
+```{r, include = FALSE}
+citation("broom")
+citation("kableExtra")
+citation("tidyverse")
+citation("rmarkdown")
+citation("knitr")
+```
+
+
+# Appendix
+```{r}
+head(bankdata)
+head(bank_train, 5)
+head(bank_test, 5)
+```
+
